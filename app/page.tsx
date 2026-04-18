@@ -346,6 +346,12 @@ export default function Home() {
       {result && !loading && style && (
         <div className="w-full max-w-xl space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
+          {/* Scraping disclaimer */}
+          <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-xs text-gray-500 dark:text-white/40">
+            <span className="mt-0.5 flex-shrink-0">ℹ️</span>
+            <span>Some checks may be incomplete. Large sites like Amazon or Apple can block automated requests, which may result in missing social links or content signals.</span>
+          </div>
+
           {/* Score hero */}
           <Card className="bg-white dark:bg-white/[0.04] border-gray-200 dark:border-white/10 text-gray-900 dark:text-white shadow-sm">
             <CardContent className="pt-6 pb-5">
