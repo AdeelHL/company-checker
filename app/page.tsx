@@ -1,65 +1,184 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import type { CheckResult } from "@/app/api/check/route";
+
+const verdictColor: Record<CheckResult["verdict"], string> = {
+  "Likely Legit": "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  Suspicious: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
+  "Likely Scam": "bg-red-500/15 text-red-400 border-red-500/30",
+};
+
+const scoreColor = (score: number) => {
+  if (score >= 60) return "text-emerald-400";
+  if (score >= 35) return "text-yellow-400";
+  return "text-red-400";
+};
+
+const progressColor = (score: number) => {
+  if (score >= 60) return "[&>div]:bg-emerald-500";
+  if (score >= 35) return "[&>div]:bg-yellow-500";
+  return "[&>div]:bg-red-500";
+};
 
 export default function Home() {
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<CheckResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleCheck() {
+    if (!query.trim()) return;
+    setLoading(true);
+    setResult(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company: query }),
+      });
+      if (!res.ok) throw new Error("Request failed");
+      const data: CheckResult = await res.json();
+      setResult(data);
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="min-h-screen bg-[#0a0a0f] text-white flex flex-col items-center px-4 py-16">
+      {/* Header */}
+      <div className="text-center mb-12">
+        <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 text-xs text-white/50 mb-6">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+          Company Legitimacy Checker
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        <h1 className="text-5xl font-bold tracking-tight mb-4 bg-gradient-to-b from-white to-white/50 bg-clip-text text-transparent">
+          Is this company legit?
+        </h1>
+        <p className="text-white/40 text-lg max-w-md mx-auto">
+          Enter a company name and we&apos;ll analyse its web presence, domain
+          age, SSL, and more to give you a trust score.
+        </p>
+      </div>
+
+      {/* Search */}
+      <div className="w-full max-w-xl mb-10">
+        <div className="flex gap-3">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleCheck()}
+            placeholder="e.g. Apple, Shopify, some-random-store.com"
+            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-5 py-3.5 text-sm text-white placeholder:text-white/25 outline-none focus:border-white/25 transition"
+          />
+          <button
+            onClick={handleCheck}
+            disabled={loading || !query.trim()}
+            className="bg-white text-black font-semibold text-sm px-6 rounded-xl disabled:opacity-40 transition hover:bg-white/90"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            {loading ? "Checking…" : "Check"}
+          </button>
         </div>
-      </main>
-    </div>
+        {error && <p className="text-red-400 text-sm mt-3">{error}</p>}
+      </div>
+
+      {/* Loading skeleton */}
+      {loading && (
+        <div className="w-full max-w-xl space-y-3 animate-pulse">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-14 rounded-xl bg-white/5" />
+          ))}
+        </div>
+      )}
+
+      {/* Results */}
+      {result && !loading && (
+        <div className="w-full max-w-xl space-y-5">
+          {/* Score card */}
+          <Card className="bg-white/5 border-white/10 text-white">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-medium text-white/70">
+                  Trust Score
+                </CardTitle>
+                <Badge
+                  className={`border text-xs font-medium ${verdictColor[result.verdict]}`}
+                >
+                  {result.verdict}
+                </Badge>
+              </div>
+              <p className="text-white/40 text-sm">
+                {result.domain ? (
+                  <>
+                    Analysed{" "}
+                    <span className="text-white/60">{result.domain}</span>
+                  </>
+                ) : (
+                  "No domain found"
+                )}
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-end gap-2">
+                <span
+                  className={`text-6xl font-bold tabular-nums ${scoreColor(result.score)}`}
+                >
+                  {result.score}
+                </span>
+                <span className="text-white/30 text-xl mb-2">/100</span>
+              </div>
+              <Progress
+                value={result.score}
+                className={`h-2 bg-white/10 ${progressColor(result.score)}`}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Checks */}
+          <Card className="bg-white/5 border-white/10 text-white">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-medium text-white/70">
+                Signal Breakdown
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-0">
+              {result.checks.map((check, i) => (
+                <div key={i}>
+                  {i > 0 && <Separator className="bg-white/5 my-0" />}
+                  <div className="flex items-start gap-3 py-3.5">
+                    <div
+                      className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${
+                        check.passed
+                          ? "bg-emerald-500/20 text-emerald-400"
+                          : "bg-red-500/20 text-red-400"
+                      }`}
+                    >
+                      {check.passed ? "✓" : "✗"}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-white/80">
+                        {check.label}
+                      </p>
+                      <p className="text-xs text-white/40 mt-0.5">
+                        {check.detail}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </main>
   );
 }
