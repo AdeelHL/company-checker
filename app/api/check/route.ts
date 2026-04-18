@@ -31,26 +31,51 @@ function verdictFromScore(score: number): CheckResult["verdict"] {
 }
 
 async function searchForDomain(company: string): Promise<string | null> {
+  // 1. Try DuckDuckGo HTML (bot-friendly)
   try {
     const query = encodeURIComponent(`${company} official website`);
-    const res = await axios.get(`https://www.google.com/search?q=${query}`, {
+    const res = await axios.get(`https://html.duckduckgo.com/html/?q=${query}`, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
       },
-      timeout: 8000,
+      timeout: 10000,
     });
-    const $ = cheerio.load(res.data);
-    // Pull first cite element (Google shows domain in green under results)
-    const firstCite = $("cite").first().text().trim();
-    if (firstCite) {
-      const match = firstCite.match(/^([a-zA-Z0-9.-]+\.[a-z]{2,})/);
+    const $ = cheerio.load(res.data as string);
+    // DuckDuckGo result links are in .result__url or .result__a
+    const firstUrl = $(".result__url").first().text().trim();
+    if (firstUrl) {
+      const match = firstUrl.match(/([a-zA-Z0-9.-]+\.[a-z]{2,})/);
       if (match) return extractDomain(match[1]);
     }
-    return null;
+    // Fallback: grab href from first result link
+    const firstHref = $(".result__a").first().attr("href");
+    if (firstHref) {
+      const urlMatch = firstHref.match(/uddg=([^&]+)/);
+      if (urlMatch) {
+        const decoded = decodeURIComponent(urlMatch[1]);
+        return extractDomain(decoded);
+      }
+    }
   } catch {
-    return null;
+    // fall through to guessing
   }
+
+  // 2. Guess common domain patterns as a last resort
+  const slug = company.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const candidates = [`${slug}.com`, `${slug}.co`, `${slug}.io`];
+  for (const candidate of candidates) {
+    try {
+      await axios.get(`https://${candidate}`, { timeout: 5000 });
+      return candidate;
+    } catch (e: unknown) {
+      // Any response code still means the domain resolves
+      if (axios.isAxiosError(e) && e.response) return candidate;
+    }
+  }
+
+  return null;
 }
 
 async function checkSSL(domain: string): Promise<boolean> {
