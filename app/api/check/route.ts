@@ -6,6 +6,7 @@ import whois from "whois-json";
 export interface SocialResult {
   platform: "LinkedIn" | "Twitter" | "Facebook" | "Instagram" | "YouTube";
   found: boolean;
+  url: string | null;
 }
 
 export interface CheckItem {
@@ -167,17 +168,27 @@ async function checkTrustpilot(domain: string): Promise<{
 }
 
 function detectSocials(html: string): SocialResult[] {
+  const $ = cheerio.load(html);
   const platforms: { platform: SocialResult["platform"]; patterns: string[] }[] = [
-    { platform: "LinkedIn", patterns: ["linkedin.com/company", "linkedin.com/in"] },
-    { platform: "Twitter", patterns: ["twitter.com/", "x.com/"] },
-    { platform: "Facebook", patterns: ["facebook.com/"] },
+    { platform: "LinkedIn",  patterns: ["linkedin.com/company", "linkedin.com/in"] },
+    { platform: "Twitter",   patterns: ["twitter.com/", "x.com/"] },
+    { platform: "Facebook",  patterns: ["facebook.com/"] },
     { platform: "Instagram", patterns: ["instagram.com/"] },
-    { platform: "YouTube", patterns: ["youtube.com/"] },
+    { platform: "YouTube",   patterns: ["youtube.com/"] },
   ];
-  return platforms.map(({ platform, patterns }) => ({
-    platform,
-    found: patterns.some((p) => html.toLowerCase().includes(p)),
-  }));
+
+  return platforms.map(({ platform, patterns }) => {
+    let url: string | null = null;
+    $("a[href]").each((_, el) => {
+      const href = ($(el).attr("href") || "").toLowerCase();
+      if (patterns.some((p) => href.includes(p))) {
+        // Grab the original (non-lowercased) href
+        url = $(el).attr("href") || null;
+        return false; // break cheerio loop
+      }
+    });
+    return { platform, found: url !== null, url };
+  });
 }
 
 export async function POST(req: NextRequest) {

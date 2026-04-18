@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useTheme } from "next-themes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -155,17 +155,57 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
+// ── Autocomplete ──────────────────────────────────────────────────────────────
+interface Suggestion { name: string; domain: string; logo: string }
+
+function useAutocomplete(query: string) {
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  useEffect(() => {
+    if (query.trim().length < 2) { setSuggestions([]); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(query)}`
+        );
+        const data: Suggestion[] = await res.json();
+        setSuggestions(data.slice(0, 6));
+      } catch { setSuggestions([]); }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [query]);
+  return suggestions;
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Home() {
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [query, setQuery] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
   const [statusIdx, setStatusIdx] = useState(0);
   const [result, setResult] = useState<CheckResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const statusTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const suggestions = useAutocomplete(query);
   useEffect(() => setMounted(true), []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  const selectSuggestion = useCallback((name: string) => {
+    setQuery(name);
+    setShowSuggestions(false);
+  }, []);
 
   useEffect(() => {
     if (loading) {
@@ -228,18 +268,46 @@ export default function Home() {
       </div>
 
       {/* Search */}
-      <div className="w-full max-w-xl mb-10">
+      <div className="w-full max-w-xl mb-10" ref={wrapperRef}>
         <div className="flex gap-3">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !loading && handleCheck()}
-            placeholder="e.g. Apple, Shopify, some-unknown-store…"
-            className="flex-1 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-5 py-3.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-white/20 outline-none focus:border-gray-400 dark:focus:border-white/20 transition-colors"
-          />
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); setShowSuggestions(true); }}
+              onFocus={() => setShowSuggestions(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !loading) { setShowSuggestions(false); handleCheck(); }
+                if (e.key === "Escape") setShowSuggestions(false);
+              }}
+              placeholder="e.g. Apple, Shopify, some-unknown-store…"
+              className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-5 py-3.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-white/20 outline-none focus:border-gray-400 dark:focus:border-white/20 transition-colors"
+            />
+            {/* Autocomplete dropdown */}
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#13131f] border border-gray-200 dark:border-white/10 rounded-xl shadow-xl overflow-hidden z-50">
+                {suggestions.map((s) => (
+                  <button
+                    key={s.domain}
+                    onMouseDown={(e) => { e.preventDefault(); selectSuggestion(s.name); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                  >
+                    {s.logo ? (
+                      <img src={s.logo} alt={s.name} className="w-6 h-6 rounded object-contain flex-shrink-0" />
+                    ) : (
+                      <div className="w-6 h-6 rounded bg-gray-100 dark:bg-white/10 flex-shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{s.name}</p>
+                      <p className="text-xs text-gray-400 dark:text-white/35 truncate">{s.domain}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
-            onClick={handleCheck}
+            onClick={() => { setShowSuggestions(false); handleCheck(); }}
             disabled={loading || !query.trim()}
             className="bg-gray-900 dark:bg-white text-white dark:text-black font-semibold text-sm px-6 rounded-xl disabled:opacity-30 transition-opacity hover:opacity-80"
           >
@@ -328,17 +396,33 @@ export default function Home() {
           <Card className="bg-white dark:bg-white/[0.04] border-gray-200 dark:border-white/10">
             <CardContent className="pt-4 pb-4">
               <p className="text-xs text-gray-400 dark:text-white/40 mb-3 font-medium uppercase tracking-wider">Social Media</p>
-              <div className="flex flex-wrap gap-2">
+              <div className="space-y-2">
                 {result.socials.map((s) => (
-                  <span
+                  <div
                     key={s.platform}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-lg border text-xs font-medium ${
                       s.found ? SOCIAL_COLORS[s.platform] : "bg-gray-50 dark:bg-white/[0.03] text-gray-300 dark:text-white/20 border-gray-100 dark:border-white/5"
                     }`}
                   >
-                    <span className={`w-1.5 h-1.5 rounded-full ${s.found ? "bg-current" : "bg-gray-300 dark:bg-white/20"}`} />
-                    {s.platform}
-                  </span>
+                    <span className="flex items-center gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.found ? "bg-current" : "bg-gray-300 dark:bg-white/20"}`} />
+                      {s.platform}
+                    </span>
+                    {s.found && s.url ? (
+                      <a
+                        href={s.url.startsWith("http") ? s.url : `https://${s.url}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity max-w-[55%] truncate"
+                        title={s.url}
+                      >
+                        <span className="truncate">{s.url.replace(/^https?:\/\/(www\.)?/, "")}</span>
+                        <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                      </a>
+                    ) : (
+                      <span className="opacity-40">Not found</span>
+                    )}
+                  </div>
                 ))}
               </div>
             </CardContent>
