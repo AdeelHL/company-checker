@@ -169,22 +169,26 @@ async function checkTrustpilot(domain: string): Promise<{
 
 function detectSocials(html: string): SocialResult[] {
   const $ = cheerio.load(html);
-  const platforms: { platform: SocialResult["platform"]; patterns: string[] }[] = [
-    { platform: "LinkedIn",  patterns: ["linkedin.com/company", "linkedin.com/in"] },
-    { platform: "Twitter",   patterns: ["twitter.com/", "x.com/"] },
-    { platform: "Facebook",  patterns: ["facebook.com/"] },
-    { platform: "Instagram", patterns: ["instagram.com/"] },
-    { platform: "YouTube",   patterns: ["youtube.com/"] },
+  const platforms: { platform: SocialResult["platform"]; hostnames: string[] }[] = [
+    { platform: "LinkedIn",  hostnames: ["linkedin.com"] },
+    { platform: "Twitter",   hostnames: ["twitter.com", "x.com"] },
+    { platform: "Facebook",  hostnames: ["facebook.com"] },
+    { platform: "Instagram", hostnames: ["instagram.com"] },
+    { platform: "YouTube",   hostnames: ["youtube.com"] },
   ];
 
-  return platforms.map(({ platform, patterns }) => {
+  return platforms.map(({ platform, hostnames }) => {
     let url: string | null = null;
     $("a[href]").each((_, el) => {
-      const href = ($(el).attr("href") || "").toLowerCase();
-      if (patterns.some((p) => href.includes(p))) {
-        // Grab the original (non-lowercased) href
-        url = $(el).attr("href") || null;
-        return false; // break cheerio loop
+      const href = $(el).attr("href") || "";
+      try {
+        const hostname = new URL(href).hostname.replace(/^www\./, "");
+        if (hostnames.includes(hostname)) {
+          url = href;
+          return false; // break cheerio loop
+        }
+      } catch {
+        // relative or invalid URL — skip
       }
     });
     return { platform, found: url !== null, url };
