@@ -2,7 +2,7 @@
 
 A full-stack web app that analyses whether a company is legitimate by scoring it across multiple trust signals — domain age, SSL certificate, web presence, contact info, legal pages, and scam phrase detection.
 
-Built with **Next.js 15**, **TypeScript**, **Tailwind CSS**, and **shadcn/ui**.
+Built with **Next.js 15**, **TypeScript**, and **Tailwind CSS**.
 
 ## Features
 
